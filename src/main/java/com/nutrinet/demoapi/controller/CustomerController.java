@@ -30,54 +30,60 @@ public class CustomerController {
     }
 
     @GetMapping(value = "/{customerId}")
-    public Customer getCustomerById(@PathVariable String customerId) {
-        logger.info("Getting movie with ID: {}", customerId);
-        return customerRepository.findCustomerById(customerId);
+    public ResponseEntity<?> getCustomerById(@PathVariable String customerId) {
+        logger.info("Getting customer with ID: {}", customerId);
+        return (customerRepository.findCustomerById(customerId) != null) ? new ResponseEntity(customerRepository.findCustomerById(customerId), HttpStatus.ACCEPTED) : ResponseEntity.status(HttpStatus.BAD_REQUEST).body("-1 No existe este cliente");
     }
 
     @PostMapping(value = "/create")
-    public Customer addCustomer(@RequestBody Customer customer) {
+    public ResponseEntity<?> addCustomer(@RequestBody Customer customer) {
         if (checkifEmailOrUsernameExist(customer)) {
-            //return status(HttpStatus.FORBIDDEN).body("usuario o email ya existe");
-            return new Customer();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("-1 Ya existe este username o email");
+
         } else {
             logger.info("Saving customer");
             customer.setImc(calcularIMC(customer));
             customer.setGeb(calcularGEB(customer));
-            return customerRepository.save(customer);
+            //return new ResponseEntity<Customer>(customerRepository.save(customer), HttpStatus.OK);
+            return new ResponseEntity<Customer>(customerRepository.save(customer), HttpStatus.OK);
+
         }
     }
 
     @PutMapping(value = "/update/{customerId}")
-    public Customer updateMovie(@PathVariable String customerId, @RequestBody Customer customer) {
-        logger.info("Updating customer with ID: {}", customerId);
-        customer.setId(customerId);
-        customer.setFechaActualizacion(LocalDateTime.now());
-        return customerRepository.save(customer);
+    public ResponseEntity<?> updateCustomer(@PathVariable String customerId, @RequestBody Customer customer) {
+        if (customerRepository.existsById(customerId)) {
+            logger.info("Updating customer with ID: {}", customerId);
+            customer.setId(customerId);
+            customer.setFechaActualizacion(LocalDateTime.now());
+            customer.setImc(calcularIMC(customer));
+            customer.setGeb(calcularGEB(customer));
+            return new ResponseEntity<Customer>(customerRepository.save(customer), HttpStatus.OK);
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("-1 No existe un cliente con el id:" + customerId);
+        }
     }
 
     @DeleteMapping(value = "/delete/{customerId}")
-    public String deleteCustomer(@PathVariable String customerId) {
+    public ResponseEntity<?> deleteCustomer(@PathVariable String customerId) {
         logger.info("Deleting customer with id: {}", customerId);
 
         if (customerRepository.existsById(customerId)) {
             try {
                 customerRepository.deleteById(customerId);
-                return 0 + "borrado exitosamente";
+                return new ResponseEntity<>("0 borrado", HttpStatus.OK);
             } catch (Exception e) {
-                return 1 + "Ha ocurrido un error";
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("-1 Ha ocurrido un error");
             }
         } else {
-            return 1 + " Este usuario no existe";
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("-1 No existe el usuario con el id:" + customerId);
         }
-        //logger.info(String.valueOf(customerRepository.existsById(customerId)));
     }
 
     public double calcularIMC(Customer customer) {
         Double imc = (customer.getPeso() / Math.pow(customer.getEstatura(), 2));
         BigDecimal bd = new BigDecimal(imc).setScale(2, RoundingMode.HALF_UP);
-        double roundedIMC = bd.doubleValue();
-        return roundedIMC;
+        return bd.doubleValue();
     }
 
     public double calcularGEB(Customer customer) {
@@ -98,6 +104,10 @@ public class CustomerController {
             } else {
                 return false;
             }
+        } else if (customerWithEmail != null) {
+            return customerWithEmail.getEmail().equals(customer.getEmail());
+        } else if (customerWithUsername != null) {
+            return customerWithUsername.getNombreUsuario().equals(customer.getNombreUsuario());
         } else {
             return false;
         }
